@@ -1,0 +1,120 @@
+{
+  "entities": {
+    "UserDocument": {
+      "title": "UserDocument",
+      "description": "Information about a user.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "User's email"
+        },
+        "role": {
+          "type": "string",
+          "description": "Role for RBAC (e.g., admin, user)"
+        }
+      }
+    },
+    "TasteDNAProfile": {
+      "title": "TasteDNAProfile",
+      "description": "The user's taste profile DNA.",
+      "type": "object",
+      "properties": {
+        "profile": {
+          "type": "object",
+          "description": "Map of characteristics to scores."
+        }
+      },
+      "required": ["profile"]
+    },
+    "WineItem": {
+      "title": "WineItem",
+      "description": "A wine item in the wishlist.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "vintage": { "type": "string" },
+        "region": { "type": "string" },
+        "grape": { "type": "string" },
+        "price": { "type": "string" },
+        "reason": { "type": "string" },
+        "notes": { "type": "string" },
+        "personalNotes": { "type": "string" },
+        "addedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "addedAt"]
+    },
+    "CellarItem": {
+      "title": "CellarItem",
+      "description": "A wine item in the cellar.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "vintage": { "type": "string" },
+        "region": { "type": "string" },
+        "grape": { "type": "string" },
+        "status": { "type": "string" },
+        "statusColor": { "type": "string" },
+        "image": { "type": "string" },
+        "rating": { "type": "number" },
+        "awards": { "type": "string" }
+      },
+      "required": ["userId", "name", "status"]
+    },
+    "ConsumptionLog": {
+      "title": "ConsumptionLog",
+      "description": "A log of wine consumption.",
+      "type": "object",
+      "properties": {
+        "wineName": { "type": "string" },
+        "calories": { "type": "number" },
+        "date": { "type": "string", "format": "date-time" },
+        "rating": { "type": "number" },
+        "notes": { "type": "string" },
+        "occasion": { "type": "string" }
+      },
+      "required": ["wineName", "date", "rating"]
+    },
+    "TastingEvent": {
+      "title": "TastingEvent",
+      "description": "A scheduled wine tasting event.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "location": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "date", "time", "location", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserDocument",
+      "description": "User specific data"
+    },
+    "/users/{userId}/profile/{docId}": {
+      "schema": "TasteDNAProfile",
+      "description": "User's Taste DNA profile"
+    },
+    "/users/{userId}/wishlist/{docId}": {
+      "schema": "WineItem",
+      "description": "Wines wishlisted by the user"
+    },
+    "/users/{userId}/cellar/{docId}": {
+      "schema": "CellarItem",
+      "description": "Wines stored in the user's cellar"
+    },
+    "/users/{userId}/consumption/{docId}": {
+      "schema": "ConsumptionLog",
+      "description": "Glasses logged by the user"
+    },
+    "/users/{userId}/events/{docId}": {
+      "schema": "TastingEvent",
+      "description": "Events scheduled by the user"
+    }
+  }
+}

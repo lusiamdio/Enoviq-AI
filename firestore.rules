@@ -1,0 +1,209 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId
+    // Fields:
+    //   - email: string
+    //   - role: string
+    //
+    // Subcollection: profile
+    // Document ID: tasteDNA
+    // Fields:
+    //   - profile: map (key: string, value: number, bounded sizes)
+    //
+    // Subcollection: wishlist
+    // Fields:
+    //   - name: string (required)
+    //   - addedAt: string (timestamp/iso required)
+    //   - various optional string properties (vintage, region, grape, price, reason, notes, personalNotes, id)
+    //
+    // Subcollection: cellar
+    // Fields:
+    //   - userId: string (required, immutable)
+    //   - name: string (required)
+    //   - status: string (required)
+    //   - various optional string properties (vintage, region, grape, statusColor, image, awards)
+    //   - rating: number (optional)
+    //
+    // Subcollection: consumption
+    // Fields:
+    //   - wineName: string (required)
+    //   - calories: number (required)
+    //   - date: string (iso required)
+    //   - rating: number (required)
+    //   - notes: string (optional)
+    //   - occasion: string (optional)
+    //
+    // Subcollection: events
+    // Fields:
+    //   - title: string (required)
+    //   - date: string (required)
+    //   - time: string (required)
+    //   - location: string (required)
+    //   - createdAt: string (iso required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "lusimadio12@gmail.com" && request.auth.token.email_verified == true)); 
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function validStringLength(str, minLen, maxLen) {
+      return str is string && str.size() >= minLen && str.size() <= maxLen;
+    }
+
+    function isValidOptionalString(field, minLen, maxLen) {
+      return !(field in request.resource.data) ||
+             (request.resource.data[field] is string &&
+              request.resource.data[field].size() >= minLen &&
+              request.resource.data[field].size() <= maxLen);
+    }
+    
+    function isValidOptionalNumber(field, min, max) {
+      return !(field in request.resource.data) ||
+             (request.resource.data[field] is number &&
+              request.resource.data[field] >= min &&
+              request.resource.data[field] <= max);
+    }
+
+    function isValidDateString(dateStr) {
+      // Validates general ISO 8601 string lengths and formats used in JS
+      return dateStr is string && dateStr.size() >= 10 && dateStr.size() <= 30;
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUserDoc() {
+      return isValidOptionalString('email', 1, 100) &&
+             isValidOptionalString('role', 1, 20);
+    }
+
+    function isValidTasteDNA() {
+      return hasRequiredFields(['profile']) &&
+             request.resource.data.profile is map; 
+             // not enforcing deep map keys currently to allow flexibility, but ensuring it's a map.
+    }
+
+    function isValidWishlist() {
+      return hasRequiredFields(['name', 'addedAt']) &&
+             validStringLength(request.resource.data.name, 1, 100) &&
+             isValidDateString(request.resource.data.addedAt) &&
+             isValidOptionalString('id', 1, 100) &&
+             isValidOptionalString('vintage', 0, 50) &&
+             isValidOptionalString('region', 0, 100) &&
+             isValidOptionalString('grape', 0, 100) &&
+             isValidOptionalString('price', 0, 50) &&
+             isValidOptionalString('reason', 0, 500) &&
+             isValidOptionalString('notes', 0, 1000) &&
+             isValidOptionalString('personalNotes', 0, 5000);
+    }
+
+    function isValidCellar() {
+      return hasRequiredFields(['userId', 'name', 'status']) &&
+             request.resource.data.userId == request.auth.uid &&
+             validStringLength(request.resource.data.name, 1, 100) &&
+             validStringLength(request.resource.data.status, 1, 100) &&
+             isValidOptionalString('vintage', 0, 50) &&
+             isValidOptionalString('region', 0, 100) &&
+             isValidOptionalString('grape', 0, 100) &&
+             isValidOptionalString('statusColor', 0, 50) &&
+             isValidOptionalString('image', 0, 2000) &&
+             isValidOptionalString('awards', 0, 500) &&
+             isValidOptionalNumber('rating', 0, 100);
+    }
+
+    function isValidConsumption() {
+      return hasRequiredFields(['wineName', 'date', 'rating']) &&
+             validStringLength(request.resource.data.wineName, 1, 100) &&
+             isValidDateString(request.resource.data.date) &&
+             request.resource.data.rating is number &&
+             isValidOptionalNumber('calories', 0, 2000) &&
+             isValidOptionalString('notes', 0, 5000) &&
+             isValidOptionalString('occasion', 0, 100);
+    }
+
+    function isValidEvent() {
+      return hasRequiredFields(['title', 'date', 'time', 'location', 'createdAt']) &&
+             validStringLength(request.resource.data.title, 1, 100) &&
+             validStringLength(request.resource.data.date, 1, 50) &&
+             validStringLength(request.resource.data.time, 1, 50) &&
+             validStringLength(request.resource.data.location, 1, 200) &&
+             isValidDateString(request.resource.data.createdAt);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUserDoc();
+      allow update: if isOwner(userId) && isValidUserDoc() && 
+                    (request.resource.data.role == resource.data.role || isAdmin());
+      // Users shouldn't be able to easily delete their root document to prevent anomalies
+      allow delete: if isAdmin();
+
+      match /profile/{docId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidTasteDNA();
+        allow update: if isOwner(userId) && isValidTasteDNA();
+        allow delete: if isOwner(userId);
+      }
+
+      match /wishlist/{docId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidWishlist();
+        allow update: if isOwner(userId) && isValidWishlist() && request.resource.data.addedAt == resource.data.addedAt;
+        allow delete: if isOwner(userId);
+      }
+
+      match /cellar/{docId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidCellar();
+        allow update: if isOwner(userId) && isValidCellar() && request.resource.data.userId == resource.data.userId;
+        allow delete: if isOwner(userId);
+      }
+
+      match /consumption/{docId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidConsumption();
+        allow update: if isOwner(userId) && isValidConsumption() && request.resource.data.date == resource.data.date;
+        allow delete: if isOwner(userId);
+      }
+
+      match /events/{docId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidEvent();
+        allow update: if isOwner(userId) && isValidEvent() && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}
